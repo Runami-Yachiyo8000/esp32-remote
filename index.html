@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0c1323">
+<title>ESP32 Robot V2.1 | 差速搖桿遙控器</title>
+<style>
+:root{color-scheme:dark;--bg:#0c1323;--surface:#17243b;--surface2:#20314e;--text:#edf4ff;--muted:#9fb2cf;--accent:#53d8c6;--danger:#ff6978}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC",sans-serif}
+body{padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(26px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+main{max-width:510px;margin:auto}.eyebrow{font-size:11px;letter-spacing:.19em;font-weight:800;color:var(--accent);margin:8px 0}h1{font-size:28px;margin:0 0 6px}.sub,.info{font-size:13px;line-height:1.6;color:var(--muted)}.sub{margin:0 0 15px}.info{margin:10px 0 0;font-size:12px}
+.panel{background:var(--surface);border:1px solid #263a5c;border-radius:20px;padding:16px;margin-bottom:15px;box-shadow:0 6px 24px #0002}.row{display:flex;align-items:center;justify-content:space-between;gap:10px}.status{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted)}.dot{width:10px;height:10px;border-radius:50%;background:#78869c;box-shadow:0 0 0 4px #77859c22}.dot.on{background:var(--accent);box-shadow:0 0 0 4px #53d8c622}button{font:inherit;border:0;cursor:pointer;user-select:none;-webkit-user-select:none}.connect{background:var(--accent);color:#072522;font-weight:800;padding:12px 16px;border-radius:12px;white-space:nowrap}.connect:disabled{opacity:.6;cursor:wait}.label{font-weight:750;font-size:15px;margin-bottom:12px}.message{min-height:24px;font-size:12px;color:var(--muted);overflow-wrap:anywhere;line-height:1.6;margin-top:8px}.warning{color:#f9cd82}
+.speed{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}.speed button{height:44px;border-radius:11px;background:var(--surface2);color:var(--text);font-weight:800;border:1px solid #324566}.speed button.selected{background:#164b4a;color:#9cfaf0;border:2px solid var(--accent)}
+.joystick{position:relative;width:min(72vw,272px);height:min(72vw,272px);border:2px solid #48658c;border-radius:50%;margin:8px auto 12px;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;overscroll-behavior:contain;background:radial-gradient(circle at center,#283e63 0 11%,transparent 11.5%),linear-gradient(0deg,transparent 49.7%,#4a6b9455 50%,transparent 50.3%),linear-gradient(90deg,transparent 49.7%,#4a6b9455 50%,transparent 50.3%),radial-gradient(circle at center,#1e3354,#102039);box-shadow:inset 0 0 0 24px #ffffff05}
+.joystick:active{border-color:var(--accent)}.knob{position:absolute;left:50%;top:50%;width:72px;height:72px;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(circle at 30% 25%,#b5fff2,var(--accent) 60%,#259d91);border:5px solid #c0f5e6;box-shadow:0 6px 18px #0006;pointer-events:none;transition:none}.joylabel{font-size:12px;color:var(--muted);text-align:center;line-height:1.65}.joyreadout{display:grid;grid-template-columns:1fr 1fr;gap:8px}.metric{background:#102039;border:1px solid #2d476b;padding:10px;border-radius:10px;text-align:center;font-size:12px}.metric strong{display:block;color:var(--accent);font-size:18px;margin-top:4px;font-variant-numeric:tabular-nums}
+.pad{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,61px);gap:9px;touch-action:none}.drive{color:var(--text);background:#283d61;border:1px solid #45618b;border-radius:15px;font-size:26px;font-weight:900;touch-action:none;-webkit-touch-callout:none;overscroll-behavior:contain}.drive:active,.drive.held{background:var(--accent);border-color:var(--accent);color:#0b2e30}.stop{background:#65303d;color:#fff;border:1px solid #ae5260;font-size:14px;font-weight:800;border-radius:15px;touch-action:none}.stop:active{background:var(--danger)}.utility{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:11px}.utility button{min-height:48px;border-radius:12px;background:var(--surface2);border:1px solid #324566;color:var(--text);font-size:13px;font-weight:750}.utility button.held{background:var(--accent);color:#07332d}footer{font-size:11px;color:#8ca0bf;text-align:center;line-height:1.7}
+@media(max-height:700px){.pad{grid-template-rows:repeat(3,51px)}.panel{padding:12px;margin-bottom:10px}h1{font-size:25px}}
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">ROBOT CONTROL / V2.1 STEERING</div>
+  <h1>ESP32 遙控中心</h1>
+  <p class="sub">單指搖桿：向上推前進，同時向左右偏移即可邊走邊轉。放開立即停止；ESP32 保留 700 ms 逾時保護。</p>
+  <section class="panel">
+    <div class="row"><div class="status"><span id="dot" class="dot"></span><span id="connection">尚未連線</span></div><button id="connect" class="connect" type="button">連接遙控車</button></div>
+    <div id="message" class="message" aria-live="polite">請在 iPhone 的 Bluefy 開啟此 HTTPS 網頁。</div>
+  </section>
+  <section class="panel">
+    <div class="label">速度檔位 <span id="speedText" style="color:var(--accent)">1 / 5</span></div>
+    <div class="speed" id="speed">
+      <button type="button" data-speed="1" class="selected">1</button><button type="button" data-speed="2">2</button><button type="button" data-speed="3">3</button><button type="button" data-speed="4">4</button><button type="button" data-speed="5">5</button>
+    </div>
+    <div class="info">建議先用第 1 檔、車輪架空測試。檔位是 PWM 上限，不代表實際 km/h。</div>
+  </section>
+  <section class="panel">
+    <div class="row"><div class="label" style="margin:0">差速搖桿</div><span id="driveStatus" style="font-size:12px;color:var(--accent)">待命</span></div>
+    <div class="joystick" id="joystick" role="application" aria-label="按住並拖曳控制行駛方向"><div class="knob" id="knob"></div></div>
+    <div class="joylabel">↑ 前進　↖ ↗ 前進轉彎　← → 原地旋轉　↓ 後退<br>手指放開＝停止。搖桿中心＝停止。</div>
+    <div class="joyreadout" style="margin-top:11px"><div class="metric">左輪相對指令<strong id="leftOutput">0%</strong></div><div class="metric">右輪相對指令<strong id="rightOutput">0%</strong></div></div>
+  </section>
+  <section class="panel">
+    <div class="row" style="margin-bottom:12px"><div class="label" style="margin:0">方向按鍵（備用）</div><span style="font-size:11px;color:var(--muted)">斜向鍵＝弧形轉彎</span></div>
+    <div class="pad" id="pad">
+      <button type="button" data-drive="Q" class="drive" aria-label="前進左轉">↖</button><button type="button" data-drive="F" class="drive" aria-label="前進">↑</button><button type="button" data-drive="E" class="drive" aria-label="前進右轉">↗</button>
+      <button type="button" data-drive="L" class="drive" aria-label="左轉">←</button><button type="button" id="stop" class="stop">停止 STOP</button><button type="button" data-drive="R" class="drive" aria-label="右轉">→</button>
+      <button type="button" data-drive="Z" class="drive" aria-label="後退左轉">↙</button><button type="button" data-drive="B" class="drive" aria-label="後退">↓</button><button type="button" data-drive="C" class="drive" aria-label="後退右轉">↘</button>
+    </div>
+    <div class="utility"><button type="button" data-drive="X" class="drive" style="font-size:14px">⟲ 左旋</button><button type="button" id="light">💡 開燈</button><button type="button" data-drive="Y" class="drive" style="font-size:14px">右旋 ⟳</button></div>
+    <p class="info">只能選一種控制方式，避免方向指令互相搶奪。斷線或切到其他 App 時由安全保護停車。實體斷電方式仍須保留。</p>
+  </section>
+  <footer>ESP32 BLE 遙控車｜校園專題 V2.1 測試版｜確認鋰電池與 L298N 供電安全再實車測試</footer>
+</main>
+<script>
+(() => {
+  'use strict';
+  const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+  const CHARACTERISTIC_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+  const REPEAT_MS = 170;
+  const $ = id => document.getElementById(id);
+  let device = null, characteristic = null, sending = false, pending = null, stopPending = false;
+  let activeType = null, activePointer = null, activeButton = null, activeCommand = null, heartbeat = null;
+  let selectedSpeed = 1, lampOn = false;
+
+  function message(text, warn = false) {
+    $('message').textContent = text;
+    $('message').className = warn ? 'message warning' : 'message';
+  }
+  function connectedUI(value) {
+    $('dot').classList.toggle('on', value);
+    $('connection').textContent = value ? '已連線：ESP32_Robot' : '尚未連線';
+    $('connect').textContent = value ? '重新連線' : '連接遙控車';
+  }
+  function enqueue(cmd) {
+    if (!characteristic) return;
+    // Only the newest packet is queued, so a stop cannot get stuck after many heartbeats.
+    if (cmd === 'S') { stopPending = true; pending = null; }
+    else pending = cmd;
+    void flush();
+  }
+  async function flush() {
+    if (sending || !characteristic) return;
+    sending = true;
+    try {
+      while ((stopPending || pending !== null) && characteristic) {
+        const cmd = stopPending ? 'S' : pending;
+        if (stopPending) stopPending = false;
+        else pending = null;
+        const gattChar = characteristic;
+        const bytes = new TextEncoder().encode(cmd);
+        if (typeof gattChar.writeValueWithResponse === 'function') await gattChar.writeValueWithResponse(bytes);
+        else await gattChar.writeValue(bytes);
+      }
+    } catch (err) {
+      message('BLE 指令傳送失敗：' + (err?.message || err) + '。請檢查停車狀況。', true);
+      stopActive(false);
+      pending = null;
+      stopPending = false;
+      characteristic = null;
+      connectedUI(false);
+    } finally {
+      sending = false;
+      if ((stopPending || pending !== null) && characteristic) void flush();
+    }
+  }
+  function readout(l, r) {
+    $('leftOutput').textContent = l + '%';
+    $('rightOutput').textContent = r + '%';
+  }
+  function centerStick() {
+    $('knob').style.transform = 'translate(-50%, -50%)';
+    readout(0, 0);
+  }
+  function stopActive(sendStop = true) {
+    if (heartbeat !== null) { clearInterval(heartbeat); heartbeat = null; }
+    if (activeButton) activeButton.classList.remove('held');
+    activeButton = null;
+    activeType = null;
+    activePointer = null;
+    activeCommand = null;
+    centerStick();
+    $('driveStatus').textContent = '待命';
+    if (sendStop) enqueue('S');
+  }
+  function beginHeartbeat() {
+    heartbeat = setInterval(() => {
+      if (activeCommand !== null && document.visibilityState !== 'hidden') enqueue(activeCommand);
+    }, REPEAT_MS);
+  }
+  function beginButton(button, ev) {
+    ev.preventDefault();
+    if (!characteristic) { message('請先連接 ESP32_Robot。', true); return; }
+    if (activeType !== null) return;
+    activeType = 'button';
+    activePointer = ev.pointerId;
+    activeButton = button;
+    activeCommand = button.dataset.drive;
+    activeButton.classList.add('held');
+    $('driveStatus').textContent = '按鍵：' + activeCommand;
+    if (button.setPointerCapture) button.setPointerCapture(ev.pointerId);
+    enqueue(activeCommand);
+    beginHeartbeat();
+  }
+  for (const button of document.querySelectorAll('[data-drive]')) {
+    button.addEventListener('pointerdown', ev => beginButton(button, ev));
+    button.addEventListener('pointerup', ev => {
+      if (activeType === 'button' && activePointer === ev.pointerId) stopActive();
+    });
+    button.addEventListener('pointercancel', ev => {
+      if (activeType === 'button' && activePointer === ev.pointerId) stopActive();
+    });
+    button.addEventListener('pointermove', ev => {
+      if (activeType !== 'button' || activePointer !== ev.pointerId) return;
+      const b = button.getBoundingClientRect();
+      if (ev.clientX < b.left || ev.clientX > b.right || ev.clientY < b.top || ev.clientY > b.bottom) stopActive();
+    });
+    button.addEventListener('lostpointercapture', ev => {
+      if (activeType === 'button' && activePointer === ev.pointerId) stopActive();
+    });
+    button.addEventListener('contextmenu', ev => ev.preventDefault());
+  }
+  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+  function joystickMix(x, y) {
+    // x>0 turns right; y>0 drives forward. Both wheels keep turning in the
+    // SAME direction when moving forward/backward, yielding a smooth arc.
+    if (Math.abs(x) < .11) x = 0;
+    if (Math.abs(y) < .11) y = 0;
+    let left, right;
+    if (y === 0) {
+      left = x; right = -x; // horizontal-only: rotate in place
+    } else {
+      const steer = x * Math.abs(y) * .65;
+      left = y + steer;
+      right = y - steer;
+    }
+    const limit = Math.max(1, Math.abs(left), Math.abs(right));
+    return [Math.round(left / limit * 100), Math.round(right / limit * 100)];
+  }
+  function updateStick(ev) {
+    const rect = $('joystick').getBoundingClientRect();
+    const radius = Math.max(24, rect.width / 2 - 38);
+    let x = (ev.clientX - (rect.left + rect.width / 2)) / radius;
+    let y = ((rect.top + rect.height / 2) - ev.clientY) / radius;
+    const distance = Math.hypot(x, y);
+    if (distance > 1) { x /= distance; y /= distance; }
+    $('knob').style.transform = `translate(-50%, -50%) translate(${(x * radius).toFixed(1)}px, ${(-y * radius).toFixed(1)}px)`;
+    const [l, r] = joystickMix(x, y);
+    readout(l, r);
+    const newCmd = (l === 0 && r === 0) ? 'S' : `M,${l},${r}`;
+    if (newCmd !== activeCommand) {
+      activeCommand = newCmd;
+      enqueue(newCmd);
+    }
+    $('driveStatus').textContent = newCmd === 'S' ? '搖桿中心 / 停止' : '搖桿控制中';
+  }
+  const joystick = $('joystick');
+  joystick.addEventListener('pointerdown', ev => {
+    ev.preventDefault();
+    if (!characteristic) { message('請先連接 ESP32_Robot。', true); return; }
+    if (activeType !== null) return;
+    activeType = 'joystick';
+    activePointer = ev.pointerId;
+    if (joystick.setPointerCapture) joystick.setPointerCapture(ev.pointerId);
+    updateStick(ev);
+    beginHeartbeat();
+  });
+  joystick.addEventListener('pointermove', ev => {
+    if (activeType === 'joystick' && activePointer === ev.pointerId) updateStick(ev);
+  });
+  for (const type of ['pointerup','pointercancel','lostpointercapture']) {
+    joystick.addEventListener(type, ev => {
+      if (activeType === 'joystick' && activePointer === ev.pointerId) stopActive();
+    });
+  }
+  joystick.addEventListener('contextmenu', ev => ev.preventDefault());
+  window.addEventListener('pointerup', ev => { if (activePointer === ev.pointerId) stopActive(); });
+  window.addEventListener('pointercancel', ev => { if (activePointer === ev.pointerId) stopActive(); });
+  $('stop').addEventListener('pointerdown', ev => { ev.preventDefault(); stopActive(); });
+  $('speed').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-speed]');
+    if (!b) return;
+    selectedSpeed = Number(b.dataset.speed);
+    document.querySelectorAll('[data-speed]').forEach(x => x.classList.toggle('selected', Number(x.dataset.speed) === selectedSpeed));
+    $('speedText').textContent = selectedSpeed + ' / 5';
+    enqueue(String(selectedSpeed));
+  });
+  $('light').addEventListener('click', () => {
+    lampOn = !lampOn;
+    $('light').textContent = lampOn ? '💡 關燈' : '💡 開燈';
+    enqueue(lampOn ? 'W' : 'w');
+  });
+  function disconnected() {
+    stopActive(false);
+    pending = null;
+    stopPending = false;
+    characteristic = null;
+    connectedUI(false);
+    message('BLE 已斷線，ESP32 應停止馬達。', true);
+  }
+  $('connect').addEventListener('click', async () => {
+    if (!navigator.bluetooth) { message('請用 iPhone Bluefy 或支援 Web Bluetooth 的瀏覽器開啟 HTTPS 網頁。', true); return; }
+    stopActive();
+    $('connect').disabled = true;
+    message('正在搜尋 ESP32_Robot…');
+    try {
+      if (device?.gatt?.connected) device.gatt.disconnect();
+      characteristic = null;
+      pending = null;
+      stopPending = false;
+      device = await navigator.bluetooth.requestDevice({filters:[{name:'ESP32_Robot'}],optionalServices:[SERVICE_UUID]});
+      device.addEventListener('gattserverdisconnected', disconnected);
+      const server = await device.gatt.connect();
+      const service = await server.getPrimaryService(SERVICE_UUID);
+      characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+      connectedUI(true);
+      message('連線成功。搖桿往上推，再往左或右滑動即可弧形轉彎。');
+      enqueue('S');
+      enqueue(String(selectedSpeed));
+    } catch (err) {
+      characteristic = null;
+      connectedUI(false);
+      message('連線失敗：' + (err?.message || err), true);
+    } finally { $('connect').disabled = false; }
+  });
+  window.addEventListener('blur', () => stopActive());
+  window.addEventListener('pagehide', () => stopActive());
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') stopActive();
+  });
+  connectedUI(false);
+  centerStick();
+})();
+</script>
+</body>
+</html>
